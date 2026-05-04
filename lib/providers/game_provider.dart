@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/game_state.dart';
@@ -34,9 +35,15 @@ class GameNotifier extends StateNotifier<GameState> {
         newGrid[r][c] = 1; // Occupied
       }
 
+      HapticFeedback.lightImpact();
+
       // Clear lines
       final clearedLines = _clearLines(newGrid);
       final newScore = state.score + clearedLines * 10;
+
+      if (clearedLines > 0) {
+        HapticFeedback.vibrate();
+      }
 
       // Update high score if needed
       int newHighScore = state.highScore;
@@ -47,6 +54,15 @@ class GameNotifier extends StateNotifier<GameState> {
 
       // Generate new blocks
       final newBlocks = Block.getRandomBlocks().take(3).toList();
+
+      // Check game over
+      bool gameOver = !_canPlaceAnyBlock(newGrid, newBlocks);
+      if (gameOver) {
+        // Handle game over, maybe show dialog or reset
+        // For now, just reset
+        resetGame();
+        return;
+      }
 
       state = state.copyWith(
         grid: newGrid,
@@ -62,6 +78,30 @@ class GameNotifier extends StateNotifier<GameState> {
       int r = row + offset.dy.toInt();
       int c = col + offset.dx.toInt();
       if (r < 0 || r >= 8 || c < 0 || c >= 8 || state.grid[r][c] != 0) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool _canPlaceAnyBlock(List<List<int>> grid, List<Block> blocks) {
+    for (int r = 0; r < 8; r++) {
+      for (int c = 0; c < 8; c++) {
+        for (var block in blocks) {
+          if (_canPlaceBlockAt(r, c, block, grid)) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  bool _canPlaceBlockAt(int row, int col, Block block, List<List<int>> grid) {
+    for (var offset in block.shape) {
+      int r = row + offset.dy.toInt();
+      int c = col + offset.dx.toInt();
+      if (r < 0 || r >= 8 || c < 0 || c >= 8 || grid[r][c] != 0) {
         return false;
       }
     }
